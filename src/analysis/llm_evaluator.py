@@ -64,12 +64,13 @@ Respond ONLY with this JSON (no markdown, no extra text):
 
 
 class LLMEvaluator:
-    """Evaluates tokens using Claude CLI with learning from past trades."""
+    """Evaluates tokens using Claude CLI or Bankr LLM Gateway, with learning from past trades."""
 
-    def __init__(self, model="sonnet", enabled=True, portfolio=None):
+    def __init__(self, model="sonnet", enabled=True, portfolio=None, bankr_llm_key=""):
         self.model = model
         self.enabled = enabled
-        self.portfolio = portfolio  # for learning from past trades
+        self.portfolio = portfolio
+        self.bankr_llm_key = bankr_llm_key  # if set, use Bankr LLM Gateway instead of CLI
 
     def _get_past_trades_section(self):
         # type: () -> str
@@ -93,6 +94,48 @@ class LLMEvaluator:
             ))
 
         return "\n".join(lines) + "\n"
+
+    def _call_claude_cli(self, prompt):
+        # type: (str) -> Optional[str]
+        """Call Claude via local CLI."""
+        result = subprocess.run(
+            ["claude", "-p", "--model", self.model, "--max-turns", "1"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.stdout.strip() if result.stdout else None
+
+    def _call_bankr_llm(self, prompt):
+        # type: (str) -> Optional[str]
+        """Call LLM via Bankr Gateway (agent pays for own inference)."""
+        import requests
+        try:
+            resp = requests.post(
+                "https://llm.bankr.bot/v1/chat/completions",
+                headers={
+                    "X-API-Key": self.bankr_llm_key,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 200,
+                },
+                timeout=20,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                logger.debug("Bankr LLM Gateway: OK (self-funded inference)")
+                return content
+            else:
+                logger.debug("Bankr LLM Gateway failed ({}), falling back to CLI".format(resp.status_code))
+                return self._call_claude_cli(prompt)
+        except Exception as e:
+            logger.debug("Bankr LLM Gateway error: {}, falling back to CLI".format(e))
+            return self._call_claude_cli(prompt)
 
     def evaluate(self, analysis_result):
         # type: (any) -> Optional[LLMVerdict]
@@ -156,15 +199,12 @@ class LLMEvaluator:
         )
 
         try:
-            result = subprocess.run(
-                ["claude", "-p", "--model", self.model, "--max-turns", "1"],
-                input=prompt,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            # Try Bankr LLM Gateway first (self-funded inference), fall back to CLI
+            if self.bankr_llm_key:
+                response = self._call_bankr_llm(prompt)
+            else:
+                response = self._call_claude_cli(prompt)
 
-            response = result.stdout.strip()
             if not response:
                 logger.warning("LLM returned empty response")
                 return None

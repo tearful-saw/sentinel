@@ -247,6 +247,25 @@ class UniswapExecutor:
 
         return {"status": "error", "error": "Timeout"}
 
+    async def get_token_price_usd(self, token_address):
+        # type: (str) -> Optional[float]
+        """Get token price in USD via Uniswap quote (1 token → USDC)."""
+        # Quote 1 token worth (18 decimals) → USDC
+        quote_data = await self.get_quote(
+            token_in=token_address,
+            token_out=USDC_BASE,
+            amount_wei=10**18,  # 1 token
+        )
+        if not quote_data:
+            return None
+
+        quote = quote_data.get("quote", {})
+        output = quote.get("output", {})
+        amount_out = int(output.get("amount", 0))
+        if amount_out > 0:
+            return amount_out / 1e6  # USDC has 6 decimals
+        return None
+
     async def get_eth_balance(self):
         # type: () -> float
         """Get ETH balance via Bankr."""

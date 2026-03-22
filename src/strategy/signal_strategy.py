@@ -176,11 +176,19 @@ class SignalStrategy:
             return 0
 
         for addr, pos in open_positions:
-            analysis = await self.analyzer.analyze(addr)
-            if not analysis or analysis.price_usd == 0:
-                continue
+            # Try Uniswap API first for price (deeper integration), fall back to DexScreener
+            current_price = None
+            if hasattr(self.executor, 'get_token_price_usd'):
+                try:
+                    current_price = await self.executor.get_token_price_usd(addr)
+                except Exception:
+                    pass
 
-            current_price = analysis.price_usd
+            if not current_price:
+                analysis = await self.analyzer.analyze(addr)
+                if not analysis or analysis.price_usd == 0:
+                    continue
+                current_price = analysis.price_usd
             now = datetime.utcnow()
 
             should_exit = False

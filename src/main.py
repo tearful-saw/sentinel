@@ -119,6 +119,7 @@ async def main():
         model="sonnet",
         enabled=not args.no_llm,
         portfolio=portfolio,
+        bankr_llm_key=bankr_key,  # if funded, uses Bankr Gateway (self-funded inference)
     )
 
     # Get Bankr wallet address
