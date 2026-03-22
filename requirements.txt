@@ -1,0 +1,15 @@
+# Telegram monitoring
+telethon==1.37.0
+
+# Configuration
+pyyaml==6.0.2
+python-dotenv==1.0.1
+
+# HTTP client (DexScreener API)
+aiohttp>=3.8.0,<4.0
+
+# Logging
+loguru==0.7.2
+
+# On-chain execution (Uniswap V3 on Base)
+web3>=6.0,<6.16

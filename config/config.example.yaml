@@ -1,0 +1,26 @@
+telegram:
+  session_name: "sentinel"
+
+sources:
+  telegram:
+    - "OttoBASEDeployments"
+    - "BasePairs"
+
+detection:
+  chains: "evm"
+  blacklist: []
+
+trading:
+  buy_amount_eth: 0.01
+  slippage_bps: 500
+  take_profit_pct: 50.0
+  stop_loss_pct: 30.0
+  time_exit_minutes: 60
+  min_liquidity_usd: 5000
+  max_positions: 5
+
+chain:
+  network: "mainnet"
+
+logging:
+  level: "INFO"
