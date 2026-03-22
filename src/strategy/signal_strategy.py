@@ -24,14 +24,16 @@ class Position:
 
 
 class SignalStrategy:
-    """Orchestrates the detect -> analyze -> LLM evaluate -> execute -> track pipeline."""
+    """Orchestrates: detect -> security check -> analyze -> LLM evaluate -> execute -> track."""
 
-    def __init__(self, analyzer, llm_evaluator, executor, portfolio, trading_config):
+    def __init__(self, analyzer, llm_evaluator, executor, portfolio, trading_config,
+                 security_checker=None):
         self.analyzer = analyzer
         self.llm = llm_evaluator
         self.executor = executor
         self.portfolio = portfolio
         self.config = trading_config
+        self.security = security_checker
         self.positions = {}  # type: Dict[str, Position]
 
     async def evaluate_signal(self, contract_address, source="unknown"):
@@ -66,7 +68,18 @@ class SignalStrategy:
             logger.info("SKIP {}: {}".format(contract_address[:16], analysis.reject_reason))
             return False
 
-        # 2. LLM evaluation
+        # 2. Security check (GoPlus) — before LLM to save inference
+        if self.security:
+            sec = await self.security.check(contract_address)
+            if sec and not sec.is_safe:
+                logger.warning("SECURITY REJECT {}: {}".format(
+                    analysis.symbol, " | ".join(sec.risk_flags)
+                ))
+                return False
+
+        # 3. LLM evaluation (with security context if available)
+        if self.security and sec:
+            analysis.holder_count = sec.holder_count
         logger.info("LLM evaluating {} ({})...".format(analysis.symbol, analysis.name[:20]))
         verdict = self.llm.evaluate(analysis)
 

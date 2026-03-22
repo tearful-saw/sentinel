@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import load_config
 from analysis.token_analyzer import TokenAnalyzer
 from analysis.llm_evaluator import LLMEvaluator
+from analysis.security_checker import SecurityChecker
 from strategy.signal_strategy import SignalStrategy
 from traders.uniswap_executor import UniswapExecutor
 from monitoring.portfolio import Portfolio
@@ -140,12 +141,15 @@ async def main():
         dry_run=dry_run,
     )
 
+    security = SecurityChecker()
+
     strategy = SignalStrategy(
         analyzer=analyzer,
         llm_evaluator=llm_evaluator,
         executor=executor,
         portfolio=portfolio,
         trading_config=config.trading,
+        security_checker=security,
     )
 
     # -- DEMO MODE --
