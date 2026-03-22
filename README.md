@@ -98,6 +98,8 @@ Real trades executed on Base mainnet:
 |--------|-------|--------|---------|
 | BUY | DEGEN | $1.00 → 1,376.81 DEGEN | [0x324aca...](https://basescan.org/tx/0x324aca2bc2fb0a0aa79680888ffcfb4f6da48607ac2feaf7d7505160ab17d818) |
 | SELL | DEGEN | 1,376.81 DEGEN → $0.98 USDC | [0xf46a57...](https://basescan.org/tx/0xf46a57f77aad7ec90d4be42021cbee73f153075742de9b67716de4e3dc8ee078) |
+| BUY | AERO | $0.50 → 1.61 AERO | [0x3d1232...](https://basescan.org/tx/0x3d1232faa97934c197f71088a1fd15dc506f38c44994348147de565c7f6c9c68) |
+| SELL | AERO | 1.61 AERO → $0.49 USDC | [0xbafac9...](https://basescan.org/tx/0xbafac95fc2f13f865fbd3bceff26536adef398f3e8c2f587e4a5bfc94f9ecb5f) |
 
 Wallet: [`0xcd5c239cd4717778d326bd25781bf1b26825927a`](https://basescan.org/address/0xcd5c239cd4717778d326bd25781bf1b26825927a)
 
