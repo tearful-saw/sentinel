@@ -10,11 +10,15 @@ import asyncio
 from typing import Optional, Dict, Any
 from loguru import logger
 
+import re
 import aiohttp
 
 
+def _is_valid_address(addr):
+    return bool(re.match(r'^0x[a-fA-F0-9]{40}$', addr))
+
+
 BANKR_API = "https://api.bankr.bot"
-BANKR_WALLET = "0xcd5c239cd4717778d326bd25781bf1b26825927a"
 
 
 class OnChainExecutor:
@@ -23,12 +27,11 @@ class OnChainExecutor:
     def __init__(self, api_key, dry_run=True):
         self.api_key = api_key
         self.dry_run = dry_run
-        self.thread_id = None  # conversation continuity
+        self.thread_id = None
+        self.wallet_address = ""  # fetched dynamically
 
         mode = "DRY-RUN" if dry_run else "LIVE"
-        logger.info("Executor ready | Bankr API | Wallet: {}... | Mode: {}".format(
-            BANKR_WALLET[:16], mode
-        ))
+        logger.info("Executor ready | Bankr API | Mode: {}".format(mode))
 
     async def _prompt(self, prompt_text):
         # type: (str) -> Dict[str, Any]
@@ -103,6 +106,8 @@ class OnChainExecutor:
     async def buy_token(self, token_address, amount_usd=5.0, symbol=""):
         # type: (str, float, str) -> Dict[str, Any]
         """Buy token on Base via Bankr."""
+        if not _is_valid_address(token_address):
+            return {"status": "error", "error": "Invalid token address"}
         token_label = symbol if symbol else token_address[:16]
 
         if self.dry_run:

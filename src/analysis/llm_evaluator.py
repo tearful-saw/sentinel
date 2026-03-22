@@ -11,6 +11,8 @@ from typing import Optional
 from dataclasses import dataclass
 from loguru import logger
 
+from utils import sanitize_token_name, sanitize_symbol
+
 
 @dataclass
 class LLMVerdict:
@@ -259,8 +261,8 @@ class LLMEvaluator:
             pair_age = "{:.0f} days".format(age_h / 24)
 
         prompt = EVALUATION_PROMPT.format(
-            symbol=analysis_result.symbol,
-            name=analysis_result.name,
+            symbol=sanitize_symbol(analysis_result.symbol),
+            name=sanitize_token_name(analysis_result.name),
             address=analysis_result.address,
             chain=analysis_result.chain,
             liquidity=analysis_result.liquidity_usd,

@@ -11,6 +11,11 @@ from loguru import logger
 
 import aiohttp
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import is_valid_evm_address
+
 
 UNISWAP_API = "https://trade-api.gateway.uniswap.org/v1"
 WETH_BASE = "0x4200000000000000000000000000000000000006"
@@ -75,6 +80,9 @@ class UniswapExecutor:
     async def buy_token(self, token_address, amount_eth=0.001, symbol=""):
         # type: (str, float, str) -> Dict[str, Any]
         """Get Uniswap quote for buying a token with ETH on Base."""
+        if not is_valid_evm_address(token_address):
+            return {"status": "error", "error": "Invalid token address"}
+
         amount_wei = int(amount_eth * 1e18)
         token_label = symbol if symbol else token_address[:16]
 
