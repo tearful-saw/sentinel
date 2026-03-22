@@ -187,7 +187,9 @@ async def main():
 
     if is_sniper:
         # ===== SNIPER MODE =====
-        # Instant buy from alpha channels — same as before
+        # Philosophy: BUY FIRST, check later. Speed > safety.
+        # GoPlus and LLM run AFTER purchase as post-trade alerts.
+
         async def handle_message(text, source, timestamp):
             # type: (str, str, datetime) -> None
             if timestamp < bot_start_time - timedelta(seconds=30):
@@ -211,7 +213,62 @@ async def main():
             logger.info("SNIPER signal from {}: {}".format(
                 source, contract.address[:20]
             ))
-            await strategy.evaluate_signal(contract.address, source)
+
+            # 1. INSTANT BUY — no analysis, no LLM, just execute
+            buy_amount = config.trading.buy_amount_eth
+            result = await executor.buy_token(
+                contract.address,
+                amount_eth=buy_amount,
+                symbol=contract.address[:10],
+            )
+
+            if result.get("status") in ("success", "dry-run"):
+                logger.success("SNIPER bought {} | ${}".format(
+                    contract.address[:16], buy_amount
+                ))
+
+                # Record in portfolio
+                portfolio.record_entry(
+                    token_address=contract.address,
+                    symbol=contract.address[:10],
+                    amount_eth=buy_amount,
+                    entry_price=0,  # unknown at snipe time
+                    tx_result=result,
+                    source="sniper:{}".format(source),
+                )
+
+                # 2. POST-TRADE: Security check in background (alert only)
+                try:
+                    sec = await security.check(contract.address)
+                    if sec:
+                        if sec.is_honeypot:
+                            logger.error("ALERT: {} is a HONEYPOT — you may not be able to sell!".format(
+                                contract.address[:16]
+                            ))
+                        elif not sec.is_safe:
+                            logger.warning("ALERT: {} has risks: {}".format(
+                                contract.address[:16], " | ".join(sec.risk_flags)
+                            ))
+                        else:
+                            logger.info("Security OK: {} | {} holders | tax: {:.0f}%/{:.0f}%".format(
+                                contract.address[:16], sec.holder_count,
+                                sec.buy_tax, sec.sell_tax,
+                            ))
+                except Exception as e:
+                    logger.debug("Post-trade security check failed: {}".format(e))
+
+                # 3. POST-TRADE: Get price info for tracking
+                try:
+                    analysis = await analyzer.analyze(contract.address)
+                    if analysis and analysis.price_usd > 0:
+                        logger.info("Token: {} ({}) | Price: ${:.8f} | Liq: ${:,.0f}".format(
+                            analysis.symbol, analysis.name[:20],
+                            analysis.price_usd, analysis.liquidity_usd,
+                        ))
+                except Exception:
+                    pass
+            else:
+                logger.error("SNIPER buy failed: {}".format(result))
 
         monitor.on_message(handle_message)
 
@@ -225,9 +282,10 @@ async def main():
                     logger.error("Exit checker error: {}".format(e))
 
         logger.info("")
-        logger.info("SNIPER mode: instant buy from {} channels".format(
+        logger.info("SNIPER mode: INSTANT BUY from {} channels".format(
             len(config.sources.telegram)
         ))
+        logger.info("Buy first, check later. GoPlus runs post-trade as alert.")
         logger.info("Press Ctrl+C to stop")
 
         try:
