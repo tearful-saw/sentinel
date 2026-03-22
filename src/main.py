@@ -30,6 +30,7 @@ from config import load_config
 from analysis.token_analyzer import TokenAnalyzer
 from analysis.llm_evaluator import LLMEvaluator
 from analysis.security_checker import SecurityChecker
+from analysis.social_checker import SocialChecker
 from strategy.signal_strategy import SignalStrategy
 from traders.uniswap_executor import UniswapExecutor
 from monitoring.portfolio import Portfolio
@@ -143,6 +144,7 @@ async def main():
     )
 
     security = SecurityChecker()
+    social = SocialChecker()
 
     strategy = SignalStrategy(
         analyzer=analyzer,
@@ -151,6 +153,7 @@ async def main():
         portfolio=portfolio,
         trading_config=config.trading,
         security_checker=security,
+        social_checker=social,
     )
 
     # -- DEMO MODE --

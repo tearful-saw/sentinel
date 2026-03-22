@@ -281,7 +281,7 @@ class LLMEvaluator:
             has_website="Yes" if analysis_result.has_website else "No",
             has_twitter="Yes" if analysis_result.has_twitter else "No",
             has_telegram="Yes" if analysis_result.has_telegram else "No",
-            past_trades_section=self._get_past_trades_section(),
+            past_trades_section=self._get_past_trades_section() + getattr(analysis_result, 'social_context', ''),
         )
 
         try:

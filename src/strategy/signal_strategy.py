@@ -24,16 +24,17 @@ class Position:
 
 
 class SignalStrategy:
-    """Orchestrates: detect -> security check -> analyze -> LLM evaluate -> execute -> track."""
+    """Orchestrates: detect -> security -> social -> analyze -> LLM evaluate -> execute -> track."""
 
     def __init__(self, analyzer, llm_evaluator, executor, portfolio, trading_config,
-                 security_checker=None):
+                 security_checker=None, social_checker=None):
         self.analyzer = analyzer
         self.llm = llm_evaluator
         self.executor = executor
         self.portfolio = portfolio
         self.config = trading_config
         self.security = security_checker
+        self.social = social_checker
         self.positions = {}  # type: Dict[str, Position]
 
     async def evaluate_signal(self, contract_address, source="unknown"):
@@ -77,7 +78,32 @@ class SignalStrategy:
                 ))
                 return False
 
-        # 3. LLM evaluation (with security context if available)
+        # 3. Social verification (Twitter + smart money patterns)
+        social_context = ""
+        if self.social:
+            try:
+                soc = await self.social.check(analysis)
+                if soc:
+                    social_context = "\nSOCIAL VERIFICATION:\n"
+                    if soc.twitter_exists:
+                        social_context += "- Twitter: @{} | {} followers | {} tweets\n".format(
+                            soc.twitter_handle, soc.twitter_followers, soc.twitter_tweets
+                        )
+                        social_context += "- Bio: {}\n".format(soc.twitter_description[:80])
+                    else:
+                        social_context += "- Twitter: NOT VERIFIED (no account found)\n"
+                    social_context += "- Buy pressure 1h: {:.0%} | Volume acceleration: {:.1f}x\n".format(
+                        soc.buy_pressure, soc.volume_acceleration
+                    )
+                    social_context += "- Social score: {}\n".format(soc.social_score)
+                    if soc.flags:
+                        social_context += "- Flags: {}\n".format(", ".join(soc.flags))
+                    # Pass to LLM via analysis object
+                    analysis.social_context = social_context
+            except Exception as e:
+                logger.debug("Social check error: {}".format(e))
+
+        # 4. LLM evaluation (with security + social context)
         if self.security and sec:
             analysis.holder_count = sec.holder_count
         logger.info("LLM evaluating {} ({})...".format(analysis.symbol, analysis.name[:20]))
