@@ -117,18 +117,40 @@ python src/main.py --demo --no-llm
 3. Claude LLM evaluates: token data → confidence score → position size
 4. Only buy if LLM confidence > 60%
 
-### Exit Rules (Autonomous)
-| Condition | Trigger | Action |
-|-----------|---------|--------|
-| Take Profit | Price +50% from entry | Sell 100% via Bankr |
-| Stop Loss | Price -30% from entry | Sell 100% via Bankr |
-| Time Exit | 60 min since entry | Sell 100% via Bankr |
+### Exit Strategy (User-Configurable)
+
+All exit rules are **optional** — set any value to `0` to disable it. You choose your own strategy:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `take_profit_pct` | `0` (off) | Auto-sell when price rises X% from entry |
+| `stop_loss_pct` | `0` (off) | Auto-sell when price drops X% from entry |
+| `time_exit_minutes` | `0` (off) | Auto-sell after X minutes |
+
+**Preset examples in `config.yaml`:**
+
+```yaml
+# Conservative scalper — quick in and out
+take_profit_pct: 20
+stop_loss_pct: 10
+time_exit_minutes: 30
+
+# Diamond hands — hold until you decide
+take_profit_pct: 0
+stop_loss_pct: 0
+time_exit_minutes: 0
+
+# Quick flip — aggressive short-term
+take_profit_pct: 50
+stop_loss_pct: 15
+time_exit_minutes: 10
+```
 
 ### Safety
 - **Dry-run mode**: Full pipeline simulation, zero risk
 - **LLM gating**: Claude must approve with confidence > 0.6
-- **Position limits**: Max 5 concurrent positions
-- **Small positions**: $1-5 per trade
+- **Configurable exits**: User controls TP/SL/time, or disables all for manual management
+- **Position limits**: Max concurrent positions (configurable)
 - **Blacklist**: Known stablecoins/wrappers never traded
 - **Deduplication**: Won't buy same token twice
 - **Full audit trail**: Every decision in trades.json

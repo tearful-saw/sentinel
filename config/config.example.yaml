@@ -1,26 +1,48 @@
 telegram:
   session_name: "sentinel"
 
+# Signal sources — add your Telegram channels/bots
 sources:
   telegram:
-    - "OttoBASEDeployments"
-    - "BasePairs"
+    - "OttoBASEDeployments"    # Base chain deployment feed
+    - "BasePairs"              # New pairs on Base
 
 detection:
   chains: "evm"
-  blacklist: []
+  blacklist: []                # Token addresses to never trade
 
+# Trading parameters — customize your strategy
 trading:
-  buy_amount_eth: 0.01
-  slippage_bps: 500
-  take_profit_pct: 50.0
-  stop_loss_pct: 30.0
-  time_exit_minutes: 60
-  min_liquidity_usd: 5000
-  max_positions: 5
+  buy_amount_eth: 0.01         # Position size in ETH per trade
+  slippage_bps: 500            # Max slippage (500 = 5%)
+  min_liquidity_usd: 5000     # Minimum pool liquidity to consider
+
+  # Exit strategy — set to 0 to disable any exit type
+  take_profit_pct: 0           # Auto-sell at +X% (0 = manual exit only)
+  stop_loss_pct: 0             # Auto-sell at -X% (0 = no stop loss)
+  time_exit_minutes: 0         # Auto-sell after X minutes (0 = hold indefinitely)
+
+  max_positions: 5             # Max concurrent open positions
+
+  # Examples:
+  #
+  # Conservative scalper:
+  #   take_profit_pct: 20
+  #   stop_loss_pct: 10
+  #   time_exit_minutes: 30
+  #
+  # Diamond hands (no auto-exit):
+  #   take_profit_pct: 0
+  #   stop_loss_pct: 0
+  #   time_exit_minutes: 0
+  #
+  # Quick flip:
+  #   take_profit_pct: 50
+  #   stop_loss_pct: 15
+  #   time_exit_minutes: 10
 
 chain:
-  network: "mainnet"
+  network: "mainnet"           # mainnet | testnet
 
 logging:
-  level: "INFO"
+  level: "INFO"                # DEBUG for verbose output

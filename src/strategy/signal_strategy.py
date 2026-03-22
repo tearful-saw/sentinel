@@ -97,15 +97,27 @@ class SignalStrategy:
         if result.get("status") in ("success", "dry-run"):
             # 4. Record position
             now = datetime.utcnow()
+            # Calculate exit levels (0 = disabled)
+            tp_price = 0.0
+            sl_price = 0.0
+            exit_time = now + timedelta(days=365)  # effectively never
+
+            if self.config.take_profit_pct > 0:
+                tp_price = analysis.price_usd * (1 + self.config.take_profit_pct / 100)
+            if self.config.stop_loss_pct > 0:
+                sl_price = analysis.price_usd * (1 - self.config.stop_loss_pct / 100)
+            if self.config.time_exit_minutes > 0:
+                exit_time = now + timedelta(minutes=self.config.time_exit_minutes)
+
             position = Position(
                 token_address=contract_address,
                 symbol=analysis.symbol,
                 entry_price=analysis.price_usd,
                 amount_usd=amount_usd,
                 entry_time=now,
-                take_profit_price=analysis.price_usd * (1 + self.config.take_profit_pct / 100),
-                stop_loss_price=analysis.price_usd * (1 - self.config.stop_loss_pct / 100),
-                exit_deadline=now + timedelta(minutes=self.config.time_exit_minutes),
+                take_profit_price=tp_price,
+                stop_loss_price=sl_price,
+                exit_deadline=exit_time,
                 source=source,
             )
             self.positions[addr_lower] = position
@@ -120,9 +132,18 @@ class SignalStrategy:
                 source=source,
             )
 
-            logger.success("Position opened: {} @ ${:.8f} | TP: ${:.8f} | SL: ${:.8f}".format(
-                analysis.symbol, analysis.price_usd,
-                position.take_profit_price, position.stop_loss_price,
+            exit_info = []
+            if tp_price > 0:
+                exit_info.append("TP: ${:.8f}".format(tp_price))
+            if sl_price > 0:
+                exit_info.append("SL: ${:.8f}".format(sl_price))
+            if self.config.time_exit_minutes > 0:
+                exit_info.append("Exit: {}min".format(self.config.time_exit_minutes))
+            if not exit_info:
+                exit_info.append("Manual exit")
+
+            logger.success("Position opened: {} @ ${:.8f} | {}".format(
+                analysis.symbol, analysis.price_usd, " | ".join(exit_info),
             ))
             return True
         else:
@@ -152,11 +173,11 @@ class SignalStrategy:
             should_exit = False
             reason = ""
 
-            if current_price >= pos.take_profit_price:
+            if pos.take_profit_price > 0 and current_price >= pos.take_profit_price:
                 should_exit = True
                 pnl = (current_price / pos.entry_price - 1) * 100
                 reason = "TAKE-PROFIT +{:.1f}%".format(pnl)
-            elif current_price <= pos.stop_loss_price:
+            elif pos.stop_loss_price > 0 and current_price <= pos.stop_loss_price:
                 should_exit = True
                 pnl = (current_price / pos.entry_price - 1) * 100
                 reason = "STOP-LOSS {:.1f}%".format(pnl)
