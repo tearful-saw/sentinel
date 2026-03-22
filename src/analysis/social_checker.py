@@ -98,21 +98,17 @@ class SocialChecker:
         if buys_1h == 0 and sells_1h == 0:
             flags.append("Zero activity in last hour")
 
-        # 4. Calculate social score
-        social_score = "none"
+        # 4. Social score — LLM decides, we just flag obvious issues
+        # NOTE: Real smart follower analysis requires Moni.io API (planned integration)
+        # For now we provide raw data and let LLM reason about it
+        social_score = "unverified"
         if twitter_exists:
-            if twitter_followers >= 1000 and twitter_tweets >= 50:
-                social_score = "strong"
-            elif twitter_followers >= 100:
-                social_score = "weak"
-            else:
-                social_score = "suspicious"
-
-            # Override if scam keywords found
             if any("bio contains" in f for f in flags):
                 social_score = "suspicious"
+            else:
+                social_score = "present"
         elif analysis_result.has_twitter:
-            social_score = "suspicious"  # claimed Twitter but account not found
+            social_score = "claimed-not-found"
 
         result = SocialResult(
             address=analysis_result.address,
