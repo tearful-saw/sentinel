@@ -21,6 +21,18 @@ class AnalysisResult:
     volume_24h: float
     passed: bool
     reject_reason: str
+    # Extended data for LLM
+    volume_1h: float = 0
+    price_change_1h: float = 0
+    price_change_6h: float = 0
+    price_change_24h: float = 0
+    buys_1h: int = 0
+    sells_1h: int = 0
+    pair_age_hours: float = 0
+    fdv: float = 0
+    has_website: bool = False
+    has_twitter: bool = False
+    has_telegram: bool = False
 
 
 class TokenAnalyzer:
@@ -101,6 +113,25 @@ class TokenAnalyzer:
             passed = False
             reject_reason = "No {} pair (best: {})".format(self.target_chain, chain_id)
 
+        # Extended data
+        import time as _time
+        volume_1h = float((best.get("volume") or {}).get("h1", 0))
+        txns_1h = best.get("txns") or {}
+        buys_1h = int((txns_1h.get("h1") or {}).get("buys", 0))
+        sells_1h = int((txns_1h.get("h1") or {}).get("sells", 0))
+        price_change = best.get("priceChange") or {}
+        pair_created = best.get("pairCreatedAt") or 0
+        pair_age_hours = (_time.time() * 1000 - pair_created) / 3600000 if pair_created else 0
+        fdv = float(best.get("fdv") or 0)
+
+        # Social signals
+        info = best.get("info") or {}
+        websites = info.get("websites") or []
+        socials = info.get("socials") or []
+        has_website = len(websites) > 0
+        has_twitter = any(s.get("type") == "twitter" for s in socials)
+        has_telegram = any(s.get("type") == "telegram" for s in socials)
+
         result = AnalysisResult(
             address=address,
             symbol=symbol,
@@ -112,6 +143,17 @@ class TokenAnalyzer:
             volume_24h=volume,
             passed=passed,
             reject_reason=reject_reason,
+            volume_1h=volume_1h,
+            price_change_1h=float(price_change.get("h1") or 0),
+            price_change_6h=float(price_change.get("h6") or 0),
+            price_change_24h=float(price_change.get("h24") or 0),
+            buys_1h=buys_1h,
+            sells_1h=sells_1h,
+            pair_age_hours=pair_age_hours,
+            fdv=fdv,
+            has_website=has_website,
+            has_twitter=has_twitter,
+            has_telegram=has_telegram,
         )
 
         if passed:
