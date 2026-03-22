@@ -1,99 +1,98 @@
 # Sentinel
 
-**Autonomous AI trading agent for Base**
+**Autonomous AI trading agent for Base — verify before you trust**
 
-> Detects token signals from Telegram alpha channels, evaluates them with Claude LLM, and executes trades on Base via Bankr — fully autonomous, self-funding, no human in the loop.
+> Every hour, hundreds of tokens deploy on Base. 99% are scams: honeypots, hidden taxes, rug pulls. Sentinel is an AI agent that doesn't trust — it verifies. Three independent security layers filter signal from noise before any trade executes on-chain.
 
 ## The Problem
 
-Alpha signals in crypto flow through Telegram channels seconds before price moves. A human reading a message, checking DexScreener, evaluating the token, opening a DEX, and swapping takes 60-120 seconds. By then, the opportunity is gone.
+Crypto agents that trade autonomously face a trust problem:
 
-99% of newly deployed tokens are scams or rugs. Blindly buying every signal loses money. You need an intelligent filter — an agent that can reason about token data and make autonomous buy/skip decisions.
+- **DexScreener socials** can be faked — anyone can add a Twitter link
+- **Liquidity** can be pulled — deployer adds $50K, waits for buys, removes it
+- **Smart contracts** can be traps — honeypots let you buy but not sell
+- **Existing bots** either buy everything (lose money) or need manual research (too slow)
+
+There's no agent that autonomously verifies token safety at the speed of on-chain. Sentinel closes this gap.
 
 ## The Solution
 
-Sentinel is a self-sustaining AI agent that:
+Sentinel doesn't trust any single data source. It cross-references three independent verification layers before risking capital:
 
 ```
-Telegram Alpha Channel (Cielo/GMGN filtered alerts)
+Telegram (deployment feeds: @OttoBASEDeployments, @BasePairs)
         │
         ▼
-┌─────────────────────┐
-│  Signal Monitor      │  Telethon (MTProto) — real-time, < 100ms
-│  Contract Detection  │  Regex: EVM 0x... + Solana + DexScreener URLs
-└────────┬────────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  Token Analyzer      │  DexScreener API — liquidity, volume, chain
-│  Quantitative gate   │  Filter: $5K+ liquidity, Base chain, not stablecoin
-└────────┬────────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  LLM Evaluator       │  Claude AI reasons about token data:
-│  Qualitative gate    │  "Volume/liquidity ratio 2.3x, 340 holders,
-│                      │   LP locked → BUY confidence: 0.85"
-└────────┬────────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  Bankr Executor      │  Natural language API on Base:
-│  On-chain swap       │  POST /agent/prompt "Buy $5 of 0x532f... on Base"
-│  Gas-free execution  │  Wallet managed by Bankr, no private keys
-└────────┬────────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  Portfolio Tracker   │  trades.json — full P&L history
-│  Auto-exit manager   │  Take-profit +50% | Stop-loss -30% | Time exit 1hr
-└─────────────────────┘
+┌──────────────────────┐
+│  Contract Detection   │  Regex: extracts 0x... from messages
+│  + Watchlist          │  Polls DexScreener every 30s until liquidity appears
+└───────────┬──────────┘
+            │  Token has liquidity > $5K?
+            ▼
+┌──────────────────────┐
+│  LAYER 1: DexScreener │  Quantitative analysis (15+ metrics):
+│  Market Data          │  Liquidity, volume (1h/24h), V/L ratio,
+│                       │  momentum (1h/6h/24h), buy/sell ratio,
+│                       │  pair age, FDV, social presence
+└───────────┬──────────┘
+            │
+            ▼
+┌──────────────────────┐
+│  LAYER 2: GoPlus      │  Security audit (FREE API):
+│  Contract Security    │  Honeypot? Hidden tax? Proxy contract?
+│                       │  Hidden owner? Mintable? Blacklist?
+│                       │  ❌ Honeypot → REJECT (save LLM cost)
+└───────────┬──────────┘
+            │
+            ▼
+┌──────────────────────┐
+│  LAYER 3: LLM         │  AI reasoning (Claude / GPT / local):
+│  Intelligence         │  Evaluates all data + past trade history
+│                       │  → Confidence score + reasoning
+│                       │  ❌ < 60% confidence → SKIP
+└───────────┬──────────┘
+            │
+            ▼
+┌──────────────────────┐
+│  Uniswap API          │  Quote + optimal routing on Base
+│  + Bankr Wallet       │  Gas-free execution, no private keys
+└───────────┬──────────┘
+            │
+            ▼
+┌──────────────────────┐
+│  Portfolio Tracker     │  trades.json: full P&L history
+│  + Self-Learning      │  Past trades fed back to LLM
+└──────────────────────┘
 ```
 
-## What Makes This an Agent (Not Just a Bot)
+## Two Modes, Two Trust Levels
 
-| Bot | Agent (Sentinel) |
-|-----|-----------------|
-| Follows hardcoded rules | Claude LLM reasons about each signal |
-| Buy everything that passes filter | Evaluates confidence score, adjusts position size |
-| No context awareness | Understands market sentiment from message text |
-| Static thresholds | Adapts reasoning to token specifics |
+Sentinel lets the human choose how much to trust the agent:
 
-The LLM evaluator receives quantitative data (liquidity, volume, V/L ratio) and returns a structured decision with confidence score and reasoning. This is not pattern matching — it's autonomous decision-making.
-
-## Why Base + Bankr?
-
-- **Sub-cent fees**: Micro-position strategies are viable
-- **2-second blocks**: Fast confirmation
-- **Bankr gas sponsorship**: Agent pays zero gas fees
-- **No private key management**: Bankr provides custodial wallet
-- **Natural language execution**: `"Buy $5 of TOKEN on Base"` — that's it
-- **Self-funding potential**: Launch token → trading fees → pay for inference
-
-## Quick Start
-
+### Scanner Mode (default) — verify everything
 ```bash
-cd sentinel
-pip install -r requirements.txt
-
-cp .env.example .env   # Add Telegram + Bankr credentials
-
-# Demo mode — no Telegram needed, shows full pipeline
-python src/main.py --demo
-
-# Dry-run — real Telegram monitoring, simulated trades
-python src/main.py --dry-run
-
-# Live — real everything via Bankr
-python src/main.py --live
-
-# Without LLM evaluation (faster, rule-based only)
-python src/main.py --demo --no-llm
+python src/main.py --dry-run          # simulated
+python src/main.py --live             # real trades
 ```
+Watches Base deployment channels → waits for liquidity → security audit → LLM evaluation → trade only if everything passes. Autonomous 24/7.
+
+### Sniper Mode — speed over safety
+```bash
+python src/main.py --dry-run --sniper  # simulated
+python src/main.py --live --sniper     # real trades
+```
+For when you know a specific token is launching in a specific channel. Buys instantly on detection, runs security checks **after** purchase as alerts. You can profit on risky tokens and get warned if something's wrong.
+
+```
+Scanner:  Detect → Verify → Verify → Verify → Buy     (safe, slow)
+Sniper:   Detect → BUY → Alert if dangerous            (fast, risky)
+```
+
+The human decides the trust level. The agent executes transparently either way.
 
 ## Live Trade Proof
 
-Real trades executed on Base mainnet via Bankr:
+Real trades executed on Base mainnet:
 
 | Action | Token | Amount | Tx Hash |
 |--------|-------|--------|---------|
@@ -102,151 +101,177 @@ Real trades executed on Base mainnet via Bankr:
 
 Wallet: [`0xcd5c239cd4717778d326bd25781bf1b26825927a`](https://basescan.org/address/0xcd5c239cd4717778d326bd25781bf1b26825927a)
 
-## Demo Output
+## What Makes This an Agent (Not a Bot)
 
+| Trading Bot | Sentinel |
+|------------|----------|
+| Hardcoded rules | LLM reasons about each token with 15+ data points |
+| Trusts one data source | Cross-references DexScreener + GoPlus + LLM |
+| Same logic forever | Self-learning: feeds past trade P&L back to LLM |
+| Fixed strategy | User configures trust level, exit strategy, position sizing |
+| One LLM provider | Multi-provider fallback: Bankr → Anthropic → OpenAI → Claude CLI → Ollama |
+
+## Quick Start
+
+```bash
+git clone https://github.com/tearful-saw/sentinel.git
+cd sentinel
+pip install -r requirements.txt
+cp .env.example .env       # Add your API keys
 ```
-14:36:28 | INFO     | Signal from Otto BASE Deployments: 0xE9a22b4838... (evm)
-14:36:29 | INFO     | SKIP: No pairs found on DexScreener (too new, no liquidity yet)
-...
-15:10:57 | SUCCESS  | QUALIFIED: MOLTSCORE (Moltscore2) | Liq: $38,606 | Age: 99s
-15:10:58 | INFO     | Scanner found qualified token — entering pipeline
-15:10:58 | INFO     | LLM evaluating MOLTSCORE...
+
+```bash
+# Demo — no Telegram or wallet needed, runs sample tokens through full pipeline
+python src/main.py --demo
+
+# Scanner — real Telegram monitoring, simulated trades
+python src/main.py --dry-run
+
+# Sniper — instant buy mode, simulated
+python src/main.py --dry-run --sniper
+
+# Live trading
+python src/main.py --live
+
+# Skip LLM (faster, rule-based only)
+python src/main.py --demo --no-llm
 ```
 
-LLM intelligent filtering (Claude evaluates each token):
-```
-BRETT:  LLM SKIP — "V/L ratio near zero, no trading activity"
-HIGHER: LLM SKIP — "Extremely low volume, high exit risk"
-DEGEN:  LLM SKIP — "V/L ratio 0.12, low momentum"
-USDC:   Blacklisted (stablecoin)
-```
+## Exit Strategy (User-Configurable)
 
-## Strategy & Risk Management
-
-### Entry Pipeline
-1. Contract address detected from monitored alpha channel
-2. DexScreener check: liquidity > $5K, Base chain pool, not stablecoin
-3. Claude LLM evaluates: token data → confidence score → position size
-4. Only buy if LLM confidence > 60%
-
-### Exit Strategy (User-Configurable)
-
-All exit rules are **optional** — set any value to `0` to disable it. You choose your own strategy:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `take_profit_pct` | `0` (off) | Auto-sell when price rises X% from entry |
-| `stop_loss_pct` | `0` (off) | Auto-sell when price drops X% from entry |
-| `time_exit_minutes` | `0` (off) | Auto-sell after X minutes |
-
-**Preset examples in `config.yaml`:**
+All exit rules are **optional** — set to `0` to disable. You control the strategy:
 
 ```yaml
-# Conservative scalper — quick in and out
-take_profit_pct: 20
-stop_loss_pct: 10
-time_exit_minutes: 30
-
-# Diamond hands — hold until you decide
-take_profit_pct: 0
-stop_loss_pct: 0
-time_exit_minutes: 0
-
-# Quick flip — aggressive short-term
-take_profit_pct: 50
-stop_loss_pct: 15
-time_exit_minutes: 10
+# config.yaml
+trading:
+  take_profit_pct: 0       # 0 = manual exit only
+  stop_loss_pct: 0         # 0 = no stop loss
+  time_exit_minutes: 0     # 0 = hold indefinitely
 ```
 
-### Safety
-- **Dry-run mode**: Full pipeline simulation, zero risk
-- **LLM gating**: Claude must approve with confidence > 0.6
-- **Configurable exits**: User controls TP/SL/time, or disables all for manual management
-- **Position limits**: Max concurrent positions (configurable)
-- **Blacklist**: Known stablecoins/wrappers never traded
-- **Deduplication**: Won't buy same token twice
-- **Full audit trail**: Every decision in trades.json
+Presets:
+```yaml
+# Scalper:  TP 20%, SL 10%, exit after 30min
+# Diamond:  all zeros — you decide when to sell
+# Quick:    TP 50%, SL 15%, exit after 10min
+```
+
+## LLM Evaluation — What Claude Sees
+
+Each token evaluation includes 15+ data points:
+
+```
+TOKEN: MOLTSCORE | Chain: Base | Price: $0.00034
+LIQUIDITY: $38,606 pool | Volume 1h: $5,200 | V/L ratio: 0.13
+MOMENTUM: +12.3% 1h | +8.1% 6h | N/A 24h (new)
+ACTIVITY: 45 buys / 12 sells = 3.8x | Pair age: 2 minutes
+SOCIAL: Website: No | Twitter: No | Telegram: No
+SECURITY: GoPlus OK | 0% tax | not honeypot | 3 holders
+PAST TRADES: "Last similar token (low social, new pair): -80%"
+→ LLM verdict: SKIP (confidence: 45%) — "No social presence,
+   very new with unverified contract, similar to past loss"
+```
+
+The LLM doesn't just check numbers — it **reasons** about patterns and learns from mistakes.
+
+## Security Layer (GoPlus)
+
+Free on-chain security audit before every Scanner trade:
+
+| Check | What it catches |
+|-------|----------------|
+| Honeypot detection | Token that can't be sold |
+| Sell tax analysis | Hidden 50%+ tax on sells |
+| Hidden owner | Owner can change balances |
+| Proxy contract | Code can be changed after deploy |
+| Mint function | Infinite token creation |
+| Transfer pause | Trading can be frozen |
+| Holder concentration | Top 10 wallets hold 90%+ |
+
+Honeypots are rejected **before** LLM evaluation — no point spending inference on a token you can't sell.
+
+## Tech Stack
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Signal Detection | Telethon (MTProto) | Real-time Telegram channel monitoring |
+| Contract Detection | Regex engine | Extract 0x... addresses from text |
+| Pair Discovery | DexScreener API | Liquidity, volume, momentum, social data |
+| Security Audit | GoPlus API (free) | Honeypot, tax, owner, proxy detection |
+| AI Evaluation | Multi-provider LLM | Intelligent buy/skip with self-learning |
+| Swap Routing | Uniswap Trading API | Optimal quotes and routing on Base |
+| Trade Execution | Bankr API | Gas-free swaps, custodial wallet |
+| Price Monitoring | Uniswap API | Position exit price tracking |
+| P&L Tracking | JSON trade journal | Full audit trail |
+
+### LLM Provider Chain (automatic fallback)
+```
+Bankr LLM Gateway → Anthropic API → OpenAI API → Claude CLI → Ollama
+     (self-funded)    (user key)      (user key)    (harness)    (local/free)
+```
+Configure via env vars. First available provider wins.
 
 ## Project Structure
 
 ```
 sentinel/
-├── README.md
+├── README.md                          # This file
+├── SKILL.md                           # Agent skill file for integration
 ├── requirements.txt
-├── .env.example
-├── config/config.yaml
+├── .env.example                       # All supported env vars documented
+├── config/config.example.yaml         # Strategy presets with examples
 ├── src/
-│   ├── main.py                  # Entry point (--dry-run/--demo/--live)
-│   ├── config.py                # YAML + env config loader
-│   ├── demo_signals.py          # Demo mode signal feeder
+│   ├── main.py                        # Entry point (--demo/--dry-run/--live/--sniper)
+│   ├── config.py                      # YAML + env config loader
+│   ├── demo_signals.py                # Demo mode token feeder
 │   ├── detectors/
-│   │   └── contract_detector.py # EVM + Solana address detection
+│   │   └── contract_detector.py       # EVM + Solana address regex
 │   ├── monitors/
-│   │   └── telegram_monitor.py  # Real-time Telegram watcher
+│   │   ├── telegram_monitor.py        # Real-time Telegram watcher
+│   │   └── pair_scanner.py            # Watchlist + DexScreener polling
 │   ├── analysis/
-│   │   ├── token_analyzer.py    # DexScreener liquidity analysis
-│   │   └── llm_evaluator.py     # Claude LLM token evaluation
+│   │   ├── token_analyzer.py          # DexScreener: 15+ metrics
+│   │   ├── security_checker.py        # GoPlus: honeypot/rug detection
+│   │   └── llm_evaluator.py           # Multi-provider LLM evaluation
 │   ├── strategy/
-│   │   └── signal_strategy.py   # Buy/sell decision engine
+│   │   └── signal_strategy.py         # Pipeline orchestration + exits
 │   ├── traders/
-│   │   └── onchain_executor.py  # Bankr API trade execution
+│   │   ├── uniswap_executor.py        # Uniswap API: quotes + routing
+│   │   └── onchain_executor.py        # Bankr API: wallet + execution
 │   └── monitoring/
-│       └── portfolio.py         # P&L tracking & trade history
-└── data/trades.json             # Trade history (auto-generated)
+│       └── portfolio.py               # P&L tracking + trade history
+└── data/trades.json                   # Trade journal (auto-generated)
 ```
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Signal Monitoring | Telethon (Telegram MTProto) |
-| Contract Detection | Regex + DexScreener URL parsing |
-| Token Analysis | DexScreener REST API |
-| LLM Evaluation | Claude (via CLI or Bankr LLM Gateway) |
-| Trade Execution | Bankr API (natural language → on-chain swap) |
-| Blockchain | Base L2 (Uniswap V3 under the hood) |
-| P&L Tracking | JSON trade journal |
 
 ## Hackathon Tracks
 
-### Base Track ($5K) — "Trading agent that makes money"
-Sentinel operates natively on Base, using Bankr's gas-sponsored execution for zero-fee swaps. The full pipeline — signal detection, LLM evaluation, autonomous execution — runs without human intervention.
+### Autonomous Trading Agent — Base ($5K)
+*"Novel strategies, proven profitability"*
 
-### Uniswap Track ($10K) — "Best agentic finance integration"
-Bankr executes swaps through Uniswap V3 on Base. The agent interacts with Uniswap liquidity pools for both entry and exit trades, with price discovery via DexScreener pool data.
+Sentinel's novelty: three-layer verification (DexScreener + GoPlus + LLM) replaces blind sniping. The agent doesn't just trade — it reasons about whether to trade, then learns from the outcome. Real mainnet execution with tx hashes on BaseScan.
 
-### Bankr Track ($7,590) — "Agent that earns and pays for own inference"
-Sentinel is designed for self-sustainability: Bankr wallet holds funds, Bankr API executes trades, Bankr LLM Gateway provides Claude inference. The agent can launch a token via Bankr launchpad where 57% of trading fees flow back to fund inference costs — a closed-loop autonomous economy.
+### Agentic Finance — Uniswap ($5K)
+*"Deeper into the Uniswap stack = more we notice"*
 
-### Open Track ($28.3K) — Agentic Finance Themes
-- **Transparent transactions**: Every trade logged with LLM reasoning, DexScreener data, and Bankr tx response
-- **Trust without registries**: Direct on-chain execution via Bankr, no intermediary approvals
-- **Agent cooperation**: Modular pipeline — analyzer, evaluator, and executor operate as independent agents coordinated by strategy
-- **Privacy**: Private keys managed by Bankr (never exposed), signal sources stored locally
+Uniswap Trading API integration for both trade execution and price monitoring:
+- Entry: `POST /v1/quote` for optimal routing across v3/v4 pools
+- Exit: Uniswap price quotes for position monitoring and TP/SL triggers
+- Real API key, real TxIDs on mainnet
 
-## Self-Funding Model
+### Best Bankr LLM Gateway Use — Bankr ($5K)
+*"Self-sustaining economics"*
 
-```
-           ┌──────────────┐
-           │ Launch $SNTL  │  Bankr Token Launchpad
-           │ token on Base │  (zero upfront cost)
-           └──────┬───────┘
-                  │
-                  ▼
-           1.2% fee on every swap
-                  │
-          ┌───────┴───────┐
-          │               │
-     57% to agent    43% to Bankr
-          │
-          ▼
-   Fund LLM inference
-   (via Bankr Gateway)
-          │
-          ▼
-   Agent keeps trading
-   autonomously forever
-```
+Sentinel uses Bankr for wallet management and trade execution. LLM evaluator supports Bankr LLM Gateway as primary inference provider — agent pays for its own reasoning from trading activity. Multi-provider fallback ensures the agent always has intelligence available.
+
+### Synthesis Open Track ($28K)
+*"Agents that trust"*
+
+Sentinel directly addresses the hackathon's core theme: **how do you trust an agent that moves money?**
+
+- **Agents that pay**: Every transaction is on-chain, verifiable on BaseScan. Human controls position size, exit strategy, and max positions via config.
+- **Agents that trust**: Sentinel doesn't trust — it verifies. Three independent layers (market data, contract security, AI reasoning) cross-reference before any trade. DexScreener socials can be faked, so GoPlus checks the actual contract code.
+- **Agents that cooperate**: Published as a SKILL.md — other agents can use Sentinel's analysis pipeline as a tool.
+- **Agents that keep secrets**: No private keys exposed (Bankr custody), API keys in local .env only, signal sources not transmitted externally.
 
 ## License
 
