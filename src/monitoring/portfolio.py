@@ -32,9 +32,12 @@ class Portfolio:
 
     def _save(self):
         # type: () -> None
+        import os
         self.trades_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.trades_file, "w") as f:
+        tmp = str(self.trades_file) + ".tmp"
+        with open(tmp, "w") as f:
             json.dump(self.trades, f, indent=2, default=str)
+        os.replace(tmp, str(self.trades_file))
 
     def record_entry(self, token_address, symbol, amount_eth, entry_price, tx_result, source=""):
         # type: (str, str, float, float, dict, str) -> None
