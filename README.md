@@ -91,22 +91,34 @@ python src/main.py --live
 python src/main.py --demo --no-llm
 ```
 
+## Live Trade Proof
+
+Real trades executed on Base mainnet via Bankr:
+
+| Action | Token | Amount | Tx Hash |
+|--------|-------|--------|---------|
+| BUY | DEGEN | $1.00 → 1,376.81 DEGEN | [0x324aca...](https://basescan.org/tx/0x324aca2bc2fb0a0aa79680888ffcfb4f6da48607ac2feaf7d7505160ab17d818) |
+| SELL | DEGEN | 1,376.81 DEGEN → $0.98 USDC | [0xf46a57...](https://basescan.org/tx/0xf46a57f77aad7ec90d4be42021cbee73f153075742de9b67716de4e3dc8ee078) |
+
+Wallet: [`0xcd5c239cd4717778d326bd25781bf1b26825927a`](https://basescan.org/address/0xcd5c239cd4717778d326bd25781bf1b26825927a)
+
 ## Demo Output
 
 ```
-12:34:56 | INFO     | ============================================================
-12:34:56 | INFO     |   SENTINEL — Autonomous Alpha Signal Trading Agent
-12:34:56 | INFO     |   Mode: DEMO | LLM: Claude
-12:34:56 | INFO     |   Execution: Bankr API (natural language trading)
-12:34:56 | INFO     | ============================================================
-12:34:57 | INFO     | Analyzing 0x532f27101965dd1644...
-12:34:57 | SUCCESS  | PASS: BRETT | Liq: $1,271,076 | Vol 24h: $2,397
-12:34:58 | INFO     | LLM evaluating BRETT (Brett)...
-12:34:59 | INFO     | LLM verdict: BUY (confidence: 78%) — High liquidity, established Base memecoin
-12:34:59 | INFO     | [DRY-RUN] Would buy $3 of BRETT on Base
-12:34:59 | SUCCESS  | Position opened: BRETT @ $0.00657700
-12:35:01 | INFO     | Analyzing 0x833589fCD6eDb6E08f...
-12:35:01 | INFO     | REJECT: USDC — Blacklisted stablecoin
+14:36:28 | INFO     | Signal from Otto BASE Deployments: 0xE9a22b4838... (evm)
+14:36:29 | INFO     | SKIP: No pairs found on DexScreener (too new, no liquidity yet)
+...
+15:10:57 | SUCCESS  | QUALIFIED: MOLTSCORE (Moltscore2) | Liq: $38,606 | Age: 99s
+15:10:58 | INFO     | Scanner found qualified token — entering pipeline
+15:10:58 | INFO     | LLM evaluating MOLTSCORE...
+```
+
+LLM intelligent filtering (Claude evaluates each token):
+```
+BRETT:  LLM SKIP — "V/L ratio near zero, no trading activity"
+HIGHER: LLM SKIP — "Extremely low volume, high exit risk"
+DEGEN:  LLM SKIP — "V/L ratio 0.12, low momentum"
+USDC:   Blacklisted (stablecoin)
 ```
 
 ## Strategy & Risk Management
