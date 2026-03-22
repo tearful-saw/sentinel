@@ -31,27 +31,52 @@ TOKEN DATA:
 - 24h Volume: ${volume:,.0f}
 - Price: ${price:.10f}
 - Volume/Liquidity ratio: {vol_liq_ratio:.2f}
-
+{past_trades_section}
 RULES:
 - We trade small positions ($1-5) on Base via Uniswap
 - Good signs: high volume relative to liquidity, growing interest, Base native
 - Bad signs: very low liquidity (<$5K), no volume, suspicious name, likely rug pull
 - Be conservative. Only recommend if confidence > 0.6
+- Learn from past trades: avoid patterns that led to losses, repeat patterns that led to wins
 
 Respond ONLY with this JSON (no markdown, no extra text):
 {{"should_buy": true/false, "confidence": 0.0-1.0, "reasoning": "one sentence", "amount_usd": 1-5}}"""
 
 
 class LLMEvaluator:
-    """Evaluates tokens using Claude CLI."""
+    """Evaluates tokens using Claude CLI with learning from past trades."""
 
-    def __init__(self, model="sonnet", enabled=True):
+    def __init__(self, model="sonnet", enabled=True, portfolio=None):
         self.model = model
         self.enabled = enabled
+        self.portfolio = portfolio  # for learning from past trades
+
+    def _get_past_trades_section(self):
+        # type: () -> str
+        """Format recent closed trades for LLM context."""
+        if not self.portfolio:
+            return ""
+
+        closed = [t for t in self.portfolio.trades if t.get("status") == "closed"]
+        if not closed:
+            return ""
+
+        # Last 5 closed trades
+        recent = closed[-5:]
+        lines = ["\nYOUR PAST TRADES (learn from these):"]
+        for t in recent:
+            pnl = t.get("pnl_pct", 0)
+            result = "+{:.0f}%".format(pnl) if pnl > 0 else "{:.0f}%".format(pnl)
+            reason = t.get("exit_reason", "")
+            lines.append("- {} ({}): {} {}".format(
+                t.get("symbol", "?"), t.get("source", ""), result, reason
+            ))
+
+        return "\n".join(lines) + "\n"
 
     def evaluate(self, analysis_result):
         # type: (any) -> Optional[LLMVerdict]
-        """Ask Claude to evaluate a token based on DexScreener data."""
+        """Ask Claude to evaluate a token based on DexScreener data + past trade history."""
         if not self.enabled:
             return LLMVerdict(
                 should_buy=True, confidence=0.5,
@@ -77,6 +102,7 @@ class LLMEvaluator:
             volume=analysis_result.volume_24h,
             price=analysis_result.price_usd,
             vol_liq_ratio=vol_liq,
+            past_trades_section=self._get_past_trades_section(),
         )
 
         try:

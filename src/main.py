@@ -111,9 +111,13 @@ async def main():
         target_chain="base",
     )
 
+    trades_path = str(Path(__file__).parent.parent / "data" / "trades.json")
+    portfolio = Portfolio(trades_file=trades_path)
+
     llm_evaluator = LLMEvaluator(
         model="sonnet",
         enabled=not args.no_llm,
+        portfolio=portfolio,
     )
 
     # Get Bankr wallet address
@@ -135,9 +139,6 @@ async def main():
         swapper_address=bankr_wallet,
         dry_run=dry_run,
     )
-
-    trades_path = str(Path(__file__).parent.parent / "data" / "trades.json")
-    portfolio = Portfolio(trades_file=trades_path)
 
     strategy = SignalStrategy(
         analyzer=analyzer,
