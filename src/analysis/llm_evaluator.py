@@ -64,13 +64,34 @@ Respond ONLY with this JSON (no markdown, no extra text):
 
 
 class LLMEvaluator:
-    """Evaluates tokens using Claude CLI or Bankr LLM Gateway, with learning from past trades."""
+    """
+    Evaluates tokens using LLM with multi-provider support and self-learning.
+
+    Provider priority (tries in order, falls back on failure):
+    1. Bankr LLM Gateway (self-funded, agent pays for own inference)
+    2. OpenAI-compatible API (user's own key — OpenAI, Anthropic, local)
+    3. Claude CLI (claude-code harness)
+
+    Configure via environment variables:
+      BANKR_API_KEY          → Bankr LLM Gateway (supports Claude, GPT, Gemini)
+      OPENAI_API_KEY         → OpenAI API (GPT models)
+      OPENAI_API_BASE        → Custom endpoint (e.g. local Ollama, Together, Groq)
+      ANTHROPIC_API_KEY      → Anthropic API (Claude models)
+    """
 
     def __init__(self, model="sonnet", enabled=True, portfolio=None, bankr_llm_key=""):
         self.model = model
         self.enabled = enabled
         self.portfolio = portfolio
-        self.bankr_llm_key = bankr_llm_key  # if set, use Bankr LLM Gateway instead of CLI
+        self.bankr_llm_key = bankr_llm_key
+
+        # Load optional provider keys from env
+        import os
+        self.openai_key = os.getenv("OPENAI_API_KEY", "")
+        self.openai_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
     def _get_past_trades_section(self):
         # type: () -> str
@@ -82,7 +103,6 @@ class LLMEvaluator:
         if not closed:
             return ""
 
-        # Last 5 closed trades
         recent = closed[-5:]
         lines = ["\nYOUR PAST TRADES (learn from these):"]
         for t in recent:
@@ -95,31 +115,20 @@ class LLMEvaluator:
 
         return "\n".join(lines) + "\n"
 
-    def _call_claude_cli(self, prompt):
-        # type: (str) -> Optional[str]
-        """Call Claude via local CLI."""
-        result = subprocess.run(
-            ["claude", "-p", "--model", self.model, "--max-turns", "1"],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        return result.stdout.strip() if result.stdout else None
-
-    def _call_bankr_llm(self, prompt):
-        # type: (str) -> Optional[str]
-        """Call LLM via Bankr Gateway (agent pays for own inference)."""
+    def _call_openai_compatible(self, prompt, api_url, api_key, model):
+        # type: (str, str, str, str) -> Optional[str]
+        """Call any OpenAI-compatible API (OpenAI, Bankr, Groq, Together, Ollama, etc.)."""
         import requests
         try:
             resp = requests.post(
-                "https://llm.bankr.bot/v1/chat/completions",
+                "{}/chat/completions".format(api_url.rstrip("/")),
                 headers={
-                    "X-API-Key": self.bankr_llm_key,
+                    "Authorization": "Bearer {}".format(api_key) if not api_url.startswith("https://llm.bankr") else "",
+                    "X-API-Key": api_key if api_url.startswith("https://llm.bankr") else "",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "claude-haiku-4-5-20251001",
+                    "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 200,
                 },
@@ -127,15 +136,90 @@ class LLMEvaluator:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                logger.debug("Bankr LLM Gateway: OK (self-funded inference)")
-                return content
-            else:
-                logger.debug("Bankr LLM Gateway failed ({}), falling back to CLI".format(resp.status_code))
-                return self._call_claude_cli(prompt)
-        except Exception as e:
-            logger.debug("Bankr LLM Gateway error: {}, falling back to CLI".format(e))
-            return self._call_claude_cli(prompt)
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return None
+        except Exception:
+            return None
+
+    def _call_anthropic(self, prompt, api_key, model):
+        # type: (str, str, str) -> Optional[str]
+        """Call Anthropic API directly."""
+        import requests
+        try:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 200,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=20,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                content = data.get("content", [{}])
+                if content:
+                    return content[0].get("text", "")
+            return None
+        except Exception:
+            return None
+
+    def _call_claude_cli(self, prompt):
+        # type: (str) -> Optional[str]
+        """Call Claude via local CLI (claude-code harness)."""
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", self.model, "--max-turns", "1"],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.stdout.strip() if result.stdout else None
+        except FileNotFoundError:
+            return None
+
+    def _call_llm(self, prompt):
+        # type: (str) -> Optional[str]
+        """Try providers in priority order. First success wins."""
+
+        # 1. Bankr LLM Gateway (self-funded inference)
+        if self.bankr_llm_key:
+            result = self._call_openai_compatible(
+                prompt, "https://llm.bankr.bot/v1", self.bankr_llm_key, self.anthropic_model
+            )
+            if result:
+                logger.debug("LLM provider: Bankr Gateway (self-funded)")
+                return result
+
+        # 2. Anthropic API (user's own key)
+        if self.anthropic_key:
+            result = self._call_anthropic(prompt, self.anthropic_key, self.anthropic_model)
+            if result:
+                logger.debug("LLM provider: Anthropic API")
+                return result
+
+        # 3. OpenAI-compatible API (OpenAI, Groq, Together, Ollama, etc.)
+        if self.openai_key:
+            result = self._call_openai_compatible(
+                prompt, self.openai_base, self.openai_key, self.openai_model
+            )
+            if result:
+                logger.debug("LLM provider: OpenAI-compatible ({})".format(self.openai_base))
+                return result
+
+        # 4. Claude CLI (always available in claude-code)
+        result = self._call_claude_cli(prompt)
+        if result:
+            logger.debug("LLM provider: Claude CLI")
+            return result
+
+        return None
 
     def evaluate(self, analysis_result):
         # type: (any) -> Optional[LLMVerdict]
@@ -199,11 +283,7 @@ class LLMEvaluator:
         )
 
         try:
-            # Try Bankr LLM Gateway first (self-funded inference), fall back to CLI
-            if self.bankr_llm_key:
-                response = self._call_bankr_llm(prompt)
-            else:
-                response = self._call_claude_cli(prompt)
+            response = self._call_llm(prompt)
 
             if not response:
                 logger.warning("LLM returned empty response")
