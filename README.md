@@ -275,6 +275,15 @@ Sentinel directly addresses the hackathon's core theme: **how do you trust an ag
 - **Agents that cooperate**: Published as a SKILL.md — other agents can use Sentinel's analysis pipeline as a tool.
 - **Agents that keep secrets**: No private keys exposed (Bankr custody), API keys in local .env only, signal sources not transmitted externally.
 
+## Support the Project
+
+Sentinel is open source and self-funded. Donations help keep the agent running, fund LLM inference, and support development of new features (smart follower analysis, more signal sources, multi-chain expansion).
+
+| Network | Address |
+|---------|---------|
+| **Solana** | `HQFTivKCPENrWmkpMwyPAUSaUB11gjj2gdbtf3yM51Et` |
+| **EVM (Base/ETH)** | `0x7f15D4144EF7f95fe9090d4825d4500C9151e33c` |
+
 ## License
 
 MIT
